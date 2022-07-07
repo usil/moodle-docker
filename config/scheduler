@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ "$MOODLE_CRON_RUNNER" = true ] ; then
+    /usr/local/bin/php /var/www/moodle/admin/cli/cron.php
+fi

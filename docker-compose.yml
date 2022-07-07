@@ -1,0 +1,60 @@
+version: '3.2'
+services:
+  moodle-db:
+    image: mysql:8.0
+    container_name: moodle-db
+    ports:
+      - 3306:3306
+    command: mysqld --general-log=1 --general-log-file=/var/log/mysql/general-log.log
+    environment:
+      MYSQL_ROOT_PASSWORD: testpass
+      MYSQL_DATABASE: ${MYSQL_DB:-moodle}
+      MYSQL_USER: ${MYSQL_USER:-usr_moodle_admin}
+      MYSQL_USER_PASSWORD: ${MYSQL_USER_PASSWORD:-changeme}
+    volumes:
+      - ./config/mysql.ini:/etc/mysql/conf.d/mysql.ini
+      - ./mysqldata:/var/lib/mysql
+      - ./config/database:/docker-entrypoint-initdb.d
+    healthcheck:
+          test: ["CMD", "mysqladmin", "-umoodle", "-pmoodle",  "ping", "-h", "localhost"]
+  redis:
+    image: redis
+    command: ["redis-server", "--requirepass", ${REDIS_PASSWORD:-secret}, "--save", ""]
+    container_name: redis
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "-a", ${REDIS_PASSWORD:-secret}, "incr", "ping" ]
+    depends_on:
+      moodle-db:
+        condition: service_healthy
+  moodle:
+    build: .
+    image: moodle
+    container_name: moodle
+    ports:
+      - 80:80
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DB: ${MYSQL_DB:-moodle}
+      MYSQL_USER: ${MYSQL_USER:-usr_moodle_admin}
+      MYSQL_USER_PASSWORD: ${MYSQL_USER_PASSWORD:-changeme}
+      MOODLE_URL:  ${MOODLE_URL:-http://localhost}
+      MOODLE_SSLPROXY: ${MOODLE_SSLPROXY:-false}
+      MOODLE_REVERSE_PROXY: ${MOODLE_REVERSE_PROXY:-false}
+      MOODLE_CRON_RUNNER: "${MOODLE_CRON_RUNNER:-true}"
+      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-secret}
+    volumes:
+      - ./moodledata:/moodledata
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+networks:
+  mynetwork:
+    driver: bridge
